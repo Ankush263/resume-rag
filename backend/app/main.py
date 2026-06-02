@@ -1,4 +1,5 @@
 from app.db.session import get_db
+from app.routes.resumes import router as resume_router
 from fastapi import Depends, FastAPI
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -18,3 +19,5 @@ def healthcheck(db: Session = Depends(get_db)):
         "status": "connected",
         "database": database_name
     }
+
+app.include_router(resume_router)
