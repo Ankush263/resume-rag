@@ -30,3 +30,15 @@ def create_resume(
         raise HTTPException(status_code=500, detail=str(e))
 
     return resume
+
+@router.get("/{resume_id}", response_model=ResumeResponse)
+def get_resume_by_id(
+    resume_id: UUID,
+    db: Session = Depends(get_db)
+):
+    resume = db.query(Resume).filter(Resume.id == resume_id).first()
+
+    if not resume:
+        raise HTTPException(status_code=404, details="Resume not found")
+    
+    return resume

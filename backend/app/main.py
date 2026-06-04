@@ -4,20 +4,15 @@ from fastapi import Depends, FastAPI
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-app = FastAPI()
+app = FastAPI(
+    title="Resume RAG API",
+    version="1.0.0"
+)
 
 @app.get("/")
-async def root():
-    return { "message": "Hello Ankush" }
-
-@app.get("/db-health")
 def healthcheck(db: Session = Depends(get_db)):
-    result = db.execute(text("SELECT current_database();"))
-    database_name = result.scalar()
-
     return {
-        "status": "connected",
-        "database": database_name
+        "status": "ok"
     }
 
 app.include_router(resume_router)
