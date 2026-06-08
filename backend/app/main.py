@@ -1,4 +1,5 @@
 from app.db.session import get_db
+from app.routes.document_chunks import router as document_chunk_router
 from app.routes.job_description import router as job_description_router
 from app.routes.resumes import router as resume_router
 from fastapi import Depends, FastAPI
@@ -18,3 +19,4 @@ def healthcheck(db: Session = Depends(get_db)):
 
 app.include_router(resume_router)
 app.include_router(job_description_router)
+app.include_router(document_chunk_router)
