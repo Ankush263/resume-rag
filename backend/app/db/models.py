@@ -164,10 +164,10 @@ class DocumentChunk(Base):
         nullable=True,
     )
 
-    # Use 1536 if you use OpenAI text-embedding-3-small.
-    # If your embedding model has a different dimension, change this now. 
+    # Must match EMBEDDING_DIMENSIONS in app/services/embedding.py (1536).
+    # Note: pgvector HNSW/IVFFlat indexes only support up to 2000 dimensions.
     embedding: Mapped[list[float] | None] = mapped_column(
-        VECTOR(3072),
+        VECTOR(1536),
         nullable=True,
     )
 

@@ -9,6 +9,11 @@ from app.schemas.job_description import (
     JobDescriptionUpdate,
 )
 from app.services.chunking import chunk_text_by_words
+from app.services.embedding import (
+    EMBEDDING_DIMENSIONS,
+    EMBEDDING_MODEL,
+    generate_document_embeddings,
+)
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -216,3 +221,57 @@ def generate_job_description_chunks(
         db.refresh(chunk)
 
     return created_chunks
+
+
+@router.post("/{jd_id}/chunks/embed")
+def embed_job_description_chunks(
+    jd_id: UUID,
+    only_missing: bool = Query(default=True),
+    db: Session = Depends(get_db)
+):
+    job_description = (
+        db.query(JobDescription)
+        .filter(JobDescription.id == jd_id)
+        .first()
+    )
+
+    if not job_description:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            details="Job description not found"
+        )
+    
+    query = db.query(DocumentChunk).filter(
+        DocumentChunk.job_description_id == jd_id
+    )
+
+    if only_missing:
+        query = query.filter(DocumentChunk.embedding.is_(None))
+        
+    chunks = query.order_by(DocumentChunk.chunk_index.asc()).all()
+
+    if not chunks:
+        return {
+            "message": "No chunks found for embedding",
+            "updated_count": 0,
+        }
+    
+    texts = [chunk.chunk_text for chunk in chunks]
+
+    embeddings = generate_document_embeddings(
+        texts=texts,
+        title=job_description.title or "job_description",
+    )
+
+    for chunk, embedding in zip(chunks, embeddings):
+        chunk.embedding = embedding
+        chunk.embedding_model = EMBEDDING_MODEL
+
+    db.commit()
+
+    return {
+        "message": "Job description chunks embedded successfully",
+        "updated_count": len(chunks),
+        "embedding_model": EMBEDDING_MODEL,
+        "embedding_dimensions": EMBEDDING_DIMENSIONS,
+    }

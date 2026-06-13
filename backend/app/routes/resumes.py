@@ -5,7 +5,12 @@ from app.db.session import get_db
 from app.schemas.document_chunk import DocumentChunkResponse
 from app.schemas.resume import ResumeCreate, ResumeResponse
 from app.services.chunking import chunk_text_by_words
-from fastapi import APIRouter, Depends, HTTPException, status
+from app.services.embedding import (
+    EMBEDDING_DIMENSIONS,
+    EMBEDDING_MODEL,
+    generate_document_embeddings,
+)
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 router = APIRouter(
@@ -111,3 +116,57 @@ def generate_resume_chunk(
         db.refresh(chunk)
 
     return created_chunks
+
+
+@router.post("/{resume_id}/chunks/embed")
+def embed_resume_chunks(
+    resume_id: UUID,
+    only_missing: bool = Query(default=True),
+    db: Session = Depends(get_db),
+):
+    resume = (
+        db.query(Resume)
+        .filter(Resume.id == resume_id)
+        .first()
+    )
+
+    if not resume:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Resume not found",
+        )
+
+    query = db.query(DocumentChunk).filter(
+        DocumentChunk.resume_id == resume_id
+    )
+
+    if only_missing:
+        query = query.filter(DocumentChunk.embedding.is_(None))
+
+    chunks = query.order_by(DocumentChunk.chunk_index.asc()).all()
+
+    if not chunks:
+        return {
+            "message": "No chunks found for embedding",
+            "updated_count": 0,
+        }
+
+    texts = [chunk.chunk_text for chunk in chunks]
+
+    embeddings = generate_document_embeddings(
+        texts=texts,
+        title="resume",
+    )
+
+    for chunk, embedding in zip(chunks, embeddings):
+        chunk.embedding = embedding
+        chunk.embedding_model = EMBEDDING_MODEL
+
+    db.commit()
+
+    return {
+        "message": "Resume chunks embedded successfully",
+        "updated_count": len(chunks),
+        "embedding_model": EMBEDDING_MODEL,
+        "embedding_dimensions": EMBEDDING_DIMENSIONS,
+    }
